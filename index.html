@@ -1,0 +1,631 @@
+<!DOCTYPE html> 
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title id="pageTitle">بيان درجات الطالب للصفوف</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script>
+        if (typeof XLSX === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'js/xlsx.full.min.js';
+            document.head.appendChild(script);
+        }
+    </script>
+    
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <script>
+        if (typeof html2canvas === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'js/html2canvas.min.js';
+            document.head.appendChild(script);
+        }
+    </script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        if (typeof jspdf === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'js/jspdf.umd.min.js';
+            document.head.appendChild(script);
+        }
+    </script>
+
+  <style>
+    body {
+      font-family: 'Cairo', sans-serif;
+      background: #f0f0f0;
+      padding: 20px;
+      text-align: center;
+    }
+    input, select, button {
+      margin: 10px;
+      padding: 12px 20px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    .a4-container {
+      width: 210mm;
+      height: 297mm;
+      margin: 20px auto;
+      background: white;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      box-sizing: border-box;
+      overflow: hidden;
+      position: relative;
+      transform-origin: top center;
+    }
+    .scaled-content {
+      width: 100%;
+      height: 100%;
+      transform: scale(0.85);
+      transform-origin: top center;
+    }
+    h3, h4 {
+      margin: 10px 0;
+      color: #333;
+    }
+    .info {
+      text-align: right;
+      font-size: 16px;
+      margin: 5px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #ccc;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #343a40;
+      color: white;
+    }
+    .grade-blue { background-color: #007bff; color: white; }
+    .grade-green { background-color: #28a745; color: white; }
+    .grade-yellow { background-color: #ffc107; color: black; }
+    .grade-red { background-color: #dc3535; color: white; }
+    .highlight-total { background-color: #5a5a5a; color: white; }
+    .signatures {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 30px;
+      font-size: 14px;
+      padding: 0 20px;
+    }
+    .download-btn {
+      margin-bottom: 20px;
+    }
+    @media (max-width: 768px) {
+      .a4-container {
+        width: 100%;
+        height: auto;
+        transform: scale(1);
+        padding: 10px;
+      }
+      .scaled-content {
+        transform: none;
+      }
+      table {
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h2>الاستعلام عن نتيجة الطالب</h2>
+
+  <label for="gradeFileSelector">اختر الصف الدراسي:</label>
+  <select id="gradeFileSelector" onchange="loadSelectedGradeFile()">
+      <option value="">اختر الصف الدراسي لتحميل ملف البيانات</option>
+      <option value="الاول الابتدائي">الأول الابتدائي</option>
+      <option value="الثاني الابتدائي">الثاني الابتدائي</option>
+      <option value="الثالث الابتدائي">الثالث الابتدائي</option>
+      <option value="الرابع الابتدائي">الرابع الابتدائي</option>
+      <option value="الخامس الابتدائي">الخامس الابتدائي</option>
+      <option value="السادس الابتدائي">السادس الابتدائي</option>
+      <option value="الاول الاعدادي">الأول الإعدادي</option>
+      <option value="الثاني الاعدادي">الثاني الإعدادي</option>
+      <option value="الثالث الاعدادي">الثالث الإعدادي</option>
+  </select>
+
+  <br />
+  <label for="yearSelector">اختر العام الدراسي (ورقة العمل):</label>
+  <select id="yearSelector" onchange="loadSheet()">
+    <option value="">اختر عامًا دراسيًا</option>
+  </select>
+  <select id="searchType">
+    <option value="الإسم" selected>بحث بالاسم</option>
+    <option value="رقم الجلوس">بحث برقم الجلوس</option>
+  </select>
+  <input type="text" id="searchInput" placeholder="أدخل الاسم أو رقم الجلوس" list="nameSuggestions" />
+  <datalist id="nameSuggestions"></datalist>
+  <button onclick="search()">اعرض النتيجة</button>
+  <select id="gradeFilter" onchange="filterByGrade()">
+    <option value="">عرض نتيجة صف دراسي كامل </option>
+  </select>
+  <hr />
+  <br />
+  <button class="download-btn" onclick="downloadImage()">📸 تحميل وطباعة النتيجة </button>
+  <button class="download-btn" onclick="downloadPDF()">📕 تحميل النتيجة كملف PDF</button>
+  <button class="download-btn" onclick="downloadAndShareWhatsapp()">🟢 تحميل ومشاركة على واتساب</button>
+
+  <div id="result"></div>
+
+  <script>
+    let sheetData = [];
+    let maxGrades = {};
+    let allWorksheets = {}; // لتخزين جميع أوراق العمل
+    let currentYear = ""; // لتخزين العام الدراسي الحالي
+    let currentGradeFile = ""; // لتخزين اسم ملف الصف الحالي
+
+    function normalize(str) {
+      return (str || "").replace(/أ|إ|آ/g, "ا").replace(/\s+/g, ' ').trim();
+    }
+
+    function getNextGrade(currentGrade) {
+      const gradesOrder = [
+        "الاول الابتدائي", "الثاني الابتدائي", "الثالث الابتدائي",
+        "الرابع الابتدائي", "الخامس الابتدائي", "السادس الابتدائي",
+        "الاول الاعدادي", "الثاني الاعدادي", "الثالث الاعدادي",
+        "الاول الثانوي", "الثاني الثانوي", "الثالث الثانوي"
+      ];
+      const cleanGrade = normalize(currentGrade);
+      const index = gradesOrder.findIndex(g => normalize(g) === cleanGrade);
+      return (index !== -1 && index < gradesOrder.length - 1) ? gradesOrder[index + 1] : "—";
+    }
+
+    function isPrimaryStage(grade) {
+      return normalize(grade).includes("الابتدائي");
+    }
+
+    function getPrimaryGradeText(percent) {
+      if (percent >= 85) return "ازرق";
+      else if (percent >= 65) return "اخضر";
+      else if (percent >= 50) return "اصفر";
+      else return "أحمر";
+    }
+
+    function getSecondaryGradeText(percent) {
+      if (percent >= 85) return "ممتاز";
+      else if (percent >= 75) return "جيد جداً";
+      else if (percent >= 65) return "جيد";
+      else if (percent >= 50) return "مقبول";
+      else return "دون المستوى";
+    }
+    
+    // الدالة لتحديد اسم الملف بناءً على الصف المختار ومنطق التجميع
+    function getFileNameForGrade(selectedGrade) {
+        let fileName = '';
+        const grade = normalize(selectedGrade);
+        
+        if (grade === normalize("الاول الابتدائي") || grade === normalize("الثاني الابتدائي")) {
+            // الصف الأول أو الثاني الابتدائي
+            fileName = "الأول والثاني ب.xlsx";
+        } else if (grade === normalize("الثالث الابتدائي")) {
+            // الصف الثالث الابتدائي
+            fileName = "الثالث الابتدائي.xlsx";
+        } else if (
+            grade === normalize("الرابع الابتدائي") ||
+            grade === normalize("الخامس الابتدائي") ||
+            grade === normalize("السادس الابتدائي")
+        ) {
+            // الصف الرابع أو الخامس أو السادس الابتدائي
+            fileName = "الرابع والخامس والسادس.xlsx";
+        } else if (
+            grade === normalize("الاول الاعدادي") ||
+            grade === normalize("الثاني الاعدادي") ||
+            grade === normalize("الثالث الاعدادي")
+        ) {
+            // المرحلة الإعدادية
+            fileName = "المرحلة الإعدادية.xlsx";
+        }
+
+        if (fileName) {
+            // إضافة المسار الجديد (فولدر Data)
+            return `Data/${fileName}`; 
+        }
+        return '';
+    }
+
+    // دالة لمعالجة ملف الإكسل بعد تحميله
+    function processWorkbook(workbook) {
+        allWorksheets = {}; 
+        const yearSelector = document.getElementById("yearSelector");
+        yearSelector.innerHTML = '<option value="">اختر عامًا دراسيًا</option>'; 
+        
+        workbook.SheetNames.forEach(sheetName => {
+          allWorksheets[sheetName] = workbook.Sheets[sheetName];
+          const option = document.createElement('option');
+          option.value = sheetName;
+          option.textContent = sheetName;
+          yearSelector.appendChild(option);
+        });
+
+        if (workbook.SheetNames.length > 0) {
+          yearSelector.value = workbook.SheetNames[0];
+          loadSheet(); 
+        }
+
+        alert(`✅ تم تحميل ملف البيانات (${currentGradeFile}) بنجاح!`);
+    }
+
+    // دالة جديدة لتحميل ملف الإكسل بناءً على اختيار الصف
+    async function loadSelectedGradeFile() {
+        const gradeSelector = document.getElementById("gradeFileSelector");
+        const selectedGrade = gradeSelector.value;
+        
+        // مسح البيانات القديمة عند تغيير الصف
+        sheetData = [];
+        allWorksheets = {};
+        document.getElementById("yearSelector").innerHTML = '<option value="">اختر عامًا دراسيًا</option>';
+        document.getElementById("result").innerHTML = '';
+        currentGradeFile = ""; 
+
+        if (!selectedGrade) {
+            return; 
+        }
+
+        const filePath = getFileNameForGrade(selectedGrade);
+        
+        if (!filePath) {
+            alert("❌ لم يتم العثور على اسم ملف إكسل مناسب للصف الدراسي المختار.");
+            return;
+        }
+
+        currentGradeFile = filePath; 
+
+        try {
+            // استخدام fetch API لتحميل ملف الإكسل
+            const response = await fetch(filePath);
+            
+            if (!response.ok) {
+                // رسالة خطأ في حال عدم العثور على الملف
+                throw new Error(`لم يتم العثور على ملف: ${filePath}. تأكد من وجوده في مجلد Data.`);
+            }
+
+            const data = await response.arrayBuffer();
+            const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+            
+            processWorkbook(workbook);
+
+        } catch (error) {
+            alert("❌ خطأ في تحميل ملف الإكسل. تحقق من اسم الملف والمسار في مجلد Data. \n" + error.message);
+            console.error(error);
+        }
+    }
+
+
+    // دالة لتحميل بيانات ورقة العمل المحددة وتحديث عناصر الصفحة
+    function loadSheet() {
+      const yearSelector = document.getElementById("yearSelector");
+      const sheetName = yearSelector.value;
+      if (!sheetName) {
+          sheetData = []; 
+          maxGrades = {};
+          document.getElementById("nameSuggestions").innerHTML = '';
+          document.getElementById("gradeFilter").innerHTML = '<option value=""> عرض نتيجة صف دراسي كامل </option>';
+          document.getElementById("result").innerHTML = '';
+          const gradeSelector = document.getElementById("gradeFileSelector");
+          const selectedGradeName = gradeSelector.options[gradeSelector.selectedIndex].text;
+          document.getElementById("pageTitle").textContent = `بيان درجات الطالب للصفوف`;
+          currentYear = "";
+          return;
+      }
+
+      currentYear = sheetName;
+      // تحديث عنوان الصفحة بالعام الدراسي المختار
+      const pageTitleElement = document.getElementById("pageTitle");
+      const gradeSelector = document.getElementById("gradeFileSelector");
+      const selectedGradeName = gradeSelector.options[gradeSelector.selectedIndex].text;
+      
+      if (pageTitleElement) { 
+          pageTitleElement.textContent = `بيان درجات الطالب للصف ${selectedGradeName} للعام الدراسي ${currentYear}`;
+      }
+
+      const worksheet = allWorksheets[sheetName];
+
+      const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      const headers = rawData[0];
+      const secondRow = rawData[1];
+      maxGrades = {};
+      headers.forEach((key, index) => {
+        if (key && typeof secondRow[index] === 'number') {
+          maxGrades[key] = secondRow[index];
+        }
+      });
+
+      const studentData = rawData.slice(2);
+      sheetData = studentData.map(row => {
+        const obj = {};
+        headers.forEach((key, i) => obj[key] = row[i]);
+        return obj;
+      });
+
+      // تحديث قائمة الاقتراحات (datalist)
+      const datalist = document.getElementById("nameSuggestions");
+      datalist.innerHTML = '';
+      sheetData.forEach(student => {
+        if (student["الإسم"]) {
+          const option = document.createElement('option');
+          option.value = student["الإسم"];
+          datalist.appendChild(option);
+        }
+      });
+
+      // تحديث فلتر الصف الدراسي
+      const gradeFilter = document.getElementById("gradeFilter");
+      const uniqueGrades = [...new Set(sheetData.map(s => s["الصف"]).filter(Boolean))];
+      gradeFilter.innerHTML = `<option value=""> عرض نتيجة صف دراسي كامل </option>`;
+      uniqueGrades.forEach(grade => {
+        const option = document.createElement("option");
+        option.value = grade;
+        option.textContent = grade;
+        gradeFilter.appendChild(option);
+      });
+      document.getElementById('result').innerHTML = ''; // مسح النتائج المعروضة عند تغيير العام
+    }
+
+    function getGradeClass(percent) {
+      if (percent >= 85) return "grade-blue";
+      else if (percent >= 65) return "grade-green";
+      else if (percent >= 50) return "grade-yellow";
+      else return "grade-red";
+    }
+
+    function generateStudentCard(student) {
+      const ignoredKeys = ["رقم الجلوس", "الإسم", "ترتيب الطالب", "الصف"];
+      const subjects = Object.keys(student).filter(k => !ignoredKeys.includes(k));
+      const nextGrade = getNextGrade(student["الصف"]);
+      const allSubjects = [...subjects];
+
+      let html = `<div class="a4-container" id="card-result"><div class="scaled-content">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+          <div style="text-align: right;">
+            <h3 style="margin: 0;">إدارة المنيا التعليمية</h3>
+            <h4 style="margin: 0;">مدرسة صلاح الدين الإسلامية الخاصة</h4>
+          </div>
+          <div>
+              </div>
+        </div>
+        <hr style="border: 1px solid #000;"/>
+        <div style="text-align: right; padding: 0 10px;">
+          <p class="info"><strong>الاسم:</strong> ${student["الإسم"] || 'غير متوفر'}</p>
+          <p class="info"><strong>رقم الجلوس:</strong> ${student["رقم الجلوس"] || 'غير متوفر'}</p>
+          <p class="info"><strong>الصف الدراسي:</strong> ${student["الصف"] || 'غير متوفر'}</p>
+          <p class="info"><strong>الترتيب على الصف:</strong> ${student["ترتيب الطالب"] || '—'}</p>
+          <p class="info"><strong>العام الدراسي:</strong> ${currentYear || 'غير متوفر'}</p>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>المادة</th>
+              <th>الدرجة الكلية</th>
+              <th>درجة الطالب</th>
+              <th>التقدير</th>
+            </tr>
+          </thead>
+          <tbody>`;
+
+      let totalScore = 0;
+      let maxTotalScore = 0;
+
+      subjects.forEach(subject => {
+        const score = student[subject] || 0;
+        const max = maxGrades[subject] || 1;
+        const percent = (score / max) * 100;
+        const gradeClass = getGradeClass(percent);
+        const gradeText = isPrimaryStage(student["الصف"]) ? getPrimaryGradeText(percent) : getSecondaryGradeText(percent);
+
+        totalScore += parseFloat(score) || 0;
+        maxTotalScore += parseFloat(max) || 0;
+
+        html += `<tr>
+              <td style="text-align: right;">${subject}</td>
+              <td>${max}</td>
+              <td>${score}</td>
+              <td class="${gradeClass}"><strong>${gradeText}</strong></td>
+            </tr>`;
+      });
+
+      const overallPercent = maxTotalScore > 0 ? (totalScore / maxTotalScore) * 100 : 0;
+      const overallGradeText = isPrimaryStage(student["الصف"]) ? getPrimaryGradeText(overallPercent) : getSecondaryGradeText(overallPercent);
+      const overallGradeClass = getGradeClass(overallPercent);
+
+      html += `
+            <tr class="highlight-total">
+              <td style="text-align: right;"><strong>المجموع الكلي</strong></td>
+              <td><strong>${maxTotalScore}</strong></td>
+              <td><strong>${totalScore}</strong></td>
+              <td class="${overallGradeClass}"><strong>${overallGradeText} (${overallPercent.toFixed(2)}%)</strong></td>
+            </tr>
+            <tr>
+              <td style="text-align: right;"><strong>الحالة</strong></td>
+              <td colspan="3" style="font-size: 16px;"><strong>${overallPercent >= 50 ? 'ناجح' : 'راسب'}</strong></td>
+            </tr>
+            <tr>
+              <td style="text-align: right;"><strong>المنقول إلى</strong></td>
+              <td colspan="3" style="font-size: 16px;"><strong>${overallPercent >= 50 ? nextGrade : '—'}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="signatures">
+          <span>توقيع ولي الأمر: ............................</span>
+          <span>توقيع مدير المدرسة: ............................</span>
+        </div>
+        <p style="position: absolute; bottom: 20px; left: 20px; font-size: 10px;">
+          تاريخ الطباعة: ${new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}
+        </p>
+
+      </div></div>`;
+
+      document.getElementById('result').innerHTML = html;
+      
+      const shareText = `نتيجة الطالب: ${student["الإسم"]} - الصف: ${student["الصف"]} - المجموع: ${totalScore} من ${maxTotalScore} - التقدير: ${overallGradeText} - النسبة: ${overallPercent.toFixed(2)}%`;
+      document.querySelector('button[onclick="downloadAndShareWhatsapp()"]').setAttribute('data-share-text', shareText);
+    }
+    
+    // دالة البحث (لم تتغير)
+    function search() {
+      const input = document.getElementById("searchInput").value.trim();
+      const searchType = document.getElementById("searchType").value;
+      if (!input || sheetData.length === 0) {
+        document.getElementById("result").innerHTML = 'الرجاء إدخال قيمة بحث وتحميل ملف البيانات أولاً.';
+        return;
+      }
+
+      const normalizedInput = normalize(input);
+
+      const student = sheetData.find(s => {
+        if (searchType === "الإسم") {
+          return normalize(s["الإسم"]) === normalizedInput;
+        } else if (searchType === "رقم الجلوس") {
+          return String(s["رقم الجلوس"]) === normalizedInput;
+        }
+        return false;
+      });
+
+      if (student) {
+        generateStudentCard(student);
+      } else {
+        document.getElementById("result").innerHTML = '<h3>❌ لم يتم العثور على الطالب بالاسم/رقم الجلوس المدخل.</h3>';
+      }
+    }
+    
+    // دالة فلترة الصفوف (لم تتغير)
+    function filterByGrade() {
+        const grade = document.getElementById("gradeFilter").value;
+        if (!grade) {
+            document.getElementById("result").innerHTML = '';
+            return;
+        }
+
+        const filteredStudents = sheetData.filter(s => s["الصف"] === grade);
+
+        if (filteredStudents.length > 0) {
+            let tableHtml = `<div class="a4-container" style="height: auto; width: 80%;"><div class="scaled-content" style="transform: none;">
+                <h3 style="text-align: center;">نتائج طلاب الصف: ${grade} للعام الدراسي: ${currentYear}</h3>
+                <table style="margin-bottom: 20px;"><thead><tr>
+                    <th>الاسم</th>
+                    <th>رقم الجلوس</th>
+                    <th>الترتيب</th>
+                    <th>المجموع الكلي</th>
+                    <th>التقدير النهائي</th>
+                </tr></thead><tbody>`;
+
+            filteredStudents.forEach(student => {
+                const ignoredKeys = ["رقم الجلوس", "الإسم", "ترتيب الطالب", "الصف"];
+                const subjects = Object.keys(student).filter(k => !ignoredKeys.includes(k));
+                let totalScore = 0;
+                let maxTotalScore = 0;
+
+                subjects.forEach(subject => {
+                    const score = student[subject] || 0;
+                    const max = maxGrades[subject] || 1;
+                    totalScore += parseFloat(score) || 0;
+                    maxTotalScore += parseFloat(max) || 0;
+                });
+
+                const overallPercent = maxTotalScore > 0 ? (totalScore / maxTotalScore) * 100 : 0;
+                const overallGradeText = isPrimaryStage(grade) ? getPrimaryGradeText(overallPercent) : getSecondaryGradeText(overallPercent);
+                const overallGradeClass = getGradeClass(overallPercent);
+
+                tableHtml += `<tr>
+                    <td style="text-align: right;">${student["الإسم"] || '—'}</td>
+                    <td>${student["رقم الجلوس"] || '—'}</td>
+                    <td>${student["ترتيب الطالب"] || '—'}</td>
+                    <td>${totalScore} / ${maxTotalScore}</td>
+                    <td class="${overallGradeClass}"><strong>${overallGradeText} (${overallPercent.toFixed(2)}%)</strong></td>
+                </tr>`;
+            });
+
+            tableHtml += `</tbody></table></div></div>`;
+            document.getElementById('result').innerHTML = tableHtml;
+        } else {
+            document.getElementById("result").innerHTML = '<h3>❌ لم يتم العثور على بيانات لهذا الصف الدراسي.</h3>';
+        }
+    }
+
+    // دوال التحميل والطباعة (لم تتغير)
+    function downloadImage() {
+      const card = document.getElementById("card-result");
+      if (!card) return alert("من فضلك اعرض النتيجة أولا");
+      const studentName = (document.querySelector('.info')?.innerText || 'الطالب').replace('الاسم:', '').trim();
+      html2canvas(card, { scale: 2 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `${studentName}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+      });
+    }
+
+    function printResult() {
+      const card = document.getElementById("card-result");
+      if (!card) return alert("من فضلك اعرض النتيجة أولا");
+      html2canvas(card, { scale: 2 }).then(canvas => {
+        const img = canvas.toDataURL('image/png');
+        const imgWindow = window.open('about:blank', 'printWindow', 'width=800,height=600');
+        imgWindow.document.write('<html><head><title>طباعة النتيجة</title><style>@page { size: A4; margin: 0; } body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }</style></head><body><img src="' + img + '" style="max-width: 210mm; max-height: 297mm;" onload="window.print();window.close()"/></body></html>');
+        imgWindow.document.close();
+      });
+    }
+
+    function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const card = document.getElementById("card-result");
+      if (!card) return alert("من فضلك اعرض النتيجة أولا");
+      const studentName = (document.querySelector('.info')?.innerText || 'الطالب').replace('الاسم:', '').trim();
+      html2canvas(card, { scale: 2 }).then(canvas => {
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p', 'mm', 'a4');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+        pdf.save(`${studentName}.pdf`);
+      });
+    }
+
+    function downloadAndShareWhatsapp() {
+      const card = document.getElementById("card-result");
+      if (!card) return alert("من فضلك اعرض النتيجة أولا");
+
+      // نجلب نص المشاركة الذي تم إعداده في دالة generateStudentCard
+      const shareText = document.querySelector('button[onclick="downloadAndShareWhatsapp()"]').getAttribute('data-share-text') || "نتيجة الطالب";
+      
+      // إنشاء وعاء للصورة لمشاركة واتساب (يتطلب رفع الصورة أولا)
+      html2canvas(card, { scale: 2 }).then(canvas => {
+        canvas.toBlob(blob => {
+          if (navigator.canShare && navigator.canShare({ files: [new File([blob], 'result.png', { type: blob.type })] })) {
+            const file = new File([blob], 'result.png', { type: blob.type });
+            navigator.share({
+              files: [file],
+              title: 'نتيجة الطالب',
+              text: shareText
+            }).catch((error) => console.log('Sharing failed', error));
+          } else {
+            // حل بديل: فتح رابط واتساب بنص فقط
+            const whatsappLink = `https://wa.me/?text=${encodeURIComponent(shareText + "\n\n(للأسف لا يمكن مشاركة الصورة مباشرة عبر المتصفح الخاص بك، يمكنك تحميلها ومشاركتها يدوياً.)")}`;
+            window.open(whatsappLink, '_blank');
+          }
+        }, 'image/png');
+      });
+    }
+  </script>
+</body>
+</html>
